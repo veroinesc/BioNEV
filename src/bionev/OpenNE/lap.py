@@ -3,14 +3,13 @@
 import networkx as nx
 import numpy as np
 from scipy.sparse.linalg import eigsh
-import scipy.sparse as sp
 
 class LaplacianEigenmaps(object):
     def __init__(self, graph, rep_size=128):
         self.g = graph
-        self.node_size = self.g.number_of_nodes()
-        self.rep_size = rep_size
-        self.adj_mat = nx.to_scipy_sparse_matrix(self.g)
+        self.node_size = self.g.number_of_nodes()  # Obtener el número de nodos del grafo
+        self.rep_size = min(rep_size, self.node_size)  # Asegurar que rep_size no sea mayor que el número de nodos
+        self.adj_mat = nx.to_numpy_array(self.g)
         self.vectors = {}
         self.embeddings = self.get_train()
         look_back = list(self.g.nodes())
@@ -28,8 +27,9 @@ class LaplacianEigenmaps(object):
     def get_train(self):
         lap_mat = self.getLap()
         print('finish getLap...')
-        w, vec = eigsh(lap_mat, k=self.rep_size)
-        print('finish eigen decomposition...')
+        # Calcular los valores y vectores propios para los primeros rep_size valores propios
+        w, vec = eigsh(lap_mat, k=self.rep_size, which='SM')  # 'SM' para los valores propios más pequeños
+        print('finish eigh(lap_mat)...')
         return vec
 
     def save_embeddings(self, filename):
@@ -39,11 +39,3 @@ class LaplacianEigenmaps(object):
         for node, vec in self.vectors.items():
             fout.write("{} {}\n".format(node, ' '.join([str(x) for x in vec])))
         fout.close()
-
-# Ejemplo de uso:
-# graph_small = nx.read_edgelist("small_graph.edgelist")
-# graph_large = nx.read_edgelist("large_graph.edgelist")
-# laplacian_small = LaplacianEigenmaps(graph_small)
-# laplacian_large = LaplacianEigenmaps(graph_large)
-# laplacian_small.save_embeddings("embeddings_small.txt")
-# laplacian_large.save_embeddings("embeddings_large.txt")
