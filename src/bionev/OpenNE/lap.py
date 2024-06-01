@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import networkx as nx
 import numpy as np
 from scipy.sparse.linalg import eigsh
@@ -7,15 +5,27 @@ from scipy.sparse.linalg import eigsh
 class LaplacianEigenmaps(object):
     def __init__(self, graph, rep_size=128):
         self.g = graph
-        self.node_size = self.g.number_of_nodes()  # Obtener el número de nodos del grafo
-        self.rep_size = min(rep_size, self.node_size)  # Asegurar que rep_size no sea mayor que el número de nodos
+        self.node_size = self.g.number_of_nodes()
+        self.rep_size = rep_size
         self.adj_mat = nx.to_numpy_array(self.g)
         self.vectors = {}
         self.embeddings = self.get_train()
-        look_back = list(self.g.nodes())
+
+        # Obtener los nodos del grafo
+        nodes = list(self.g.nodes())
 
         for i, embedding in enumerate(self.embeddings):
-            self.vectors[look_back[i]] = embedding
+            self.vectors[nodes[i]] = embedding
+
+    def getAdj(self):
+        look_up = self.g.look_up_dict if hasattr(self.g, 'look_up_dict') else None
+        adj = np.zeros((self.node_size, self.node_size))
+        for edge in self.g.edges():
+            if look_up:
+                adj[look_up[edge[0]]][look_up[edge[1]]] = self.g[edge[0]][edge[1]]['weight']
+            else:
+                adj[edge[0]][edge[1]] = self.g[edge[0]][edge[1]]['weight']
+        return adj
 
     def getLap(self):
         G = self.g.to_undirected()
@@ -27,15 +37,13 @@ class LaplacianEigenmaps(object):
     def get_train(self):
         lap_mat = self.getLap()
         print('finish getLap...')
-        # Calcular los valores y vectores propios para los primeros rep_size valores propios
-        w, vec = eigsh(lap_mat, k=self.rep_size, which='SM')  # 'SM' para los valores propios más pequeños
+        w, vec = eigsh(lap_mat, k=self.rep_size)
         print('finish eigh(lap_mat)...')
         return vec
 
     def save_embeddings(self, filename):
         fout = open(filename, 'w')
-        node_num = len(self.vectors)
-        fout.write("{} {}\n".format(node_num, self.rep_size))
+        fout.write("{} {}\n".format(self.node_size, self.rep_size))
         for node, vec in self.vectors.items():
             fout.write("{} {}\n".format(node, ' '.join([str(x) for x in vec])))
         fout.close()
