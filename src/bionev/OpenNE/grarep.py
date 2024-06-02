@@ -10,7 +10,7 @@ class GraRep(object):
     def __init__(self, graph, Kstep, dim):
         self.g = graph
         self.Kstep = Kstep
-        assert dim % Kstep == 0
+        assert dim % Kstep == 0, "The total dimension should be divisible by Kstep."
         self.dim = int(dim / Kstep)
         self.train()
 
@@ -42,6 +42,11 @@ class GraRep(object):
         W = np.matmul(U, np.power(Sigma, alpha))
         C = np.matmul(VT.T, np.power(Sigma, alpha))
         embeddings = W + C
+        if embeddings.shape[1] < self.dim:
+            padding = np.zeros((embeddings.shape[0], self.dim - embeddings.shape[1]))
+            embeddings = np.hstack((embeddings, padding))
+        elif embeddings.shape[1] > self.dim:
+            embeddings = embeddings[:, :self.dim]
         return embeddings
 
     def save_embeddings(self, filename):
