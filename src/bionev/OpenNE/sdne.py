@@ -1,36 +1,28 @@
 # -*- coding: utf-8 -*-
 
+
 import numpy as np
 import tensorflow as tf
 
-__author__ = "Wang Binlu"
-__email__ = "wblmail@whu.edu.cn"
+# Deshabilitar la ejecución ansiosa
+tf.compat.v1.disable_eager_execution()
 
-
+#funcion adaptada a tensorflow2x
 def fc_op(input_op, name, n_out, layer_collector, act_func=tf.nn.leaky_relu):
-    n_in = input_op.get_shape()[-1].value
-    with tf.name_scope(name) as scope:
-        kernel = tf.Variable(tf.contrib.layers.xavier_initializer()([n_in, n_out]), dtype=tf.float32, name=scope + "w")
+    n_in = input_op.shape[-1]
 
-        # kernel = tf.Variable(tf.random_normal([n_in, n_out]))
-        biases = tf.Variable(tf.constant(0, shape=[1, n_out], dtype=tf.float32), name=scope + 'b')
+    with tf.name_scope(name) as scope:
+        kernel = tf.Variable(tf.keras.initializers.GlorotUniform()([n_in, n_out]), dtype=tf.float32, name=scope + "w")
+        biases = tf.Variable(tf.zeros([n_out], dtype=tf.float32), name=scope + 'b')
 
         fc = tf.add(tf.matmul(input_op, kernel), biases)
         activation = act_func(fc, name=scope + 'act')
         layer_collector.append([kernel, biases])
         return activation
 
-
 class SDNE(object):
     def __init__(self, graph, encoder_layer_list, alpha=1e-6, beta=5., nu1=1e-5, nu2=1e-4,
                  batch_size=200, epoch=100, learning_rate=None):
-        """
-        encoder_layer_list: a list of numbers of the neuron at each ecdoer layer, the last number is the
-        dimension of the output node representation
-        Eg:
-        if node size is 2000, encoder_layer_list=[1000, 128], then the whole neural network would be
-        2000(input)->1000->128->1000->2000, SDNE extract the middle layer as the node representation
-        """
         self.g = graph
 
         self.node_size = self.g.G.number_of_nodes()
@@ -50,9 +42,9 @@ class SDNE(object):
 
         self.lr = learning_rate
         if self.lr is None:
-            self.lr = tf.train.inverse_time_decay(0.03, self.max_iter, decay_steps=1, decay_rate=0.9999)
-
-        self.sess = tf.Session()
+            self.lr = tf.keras.optimizers.schedules.InverseTimeDecay(0.03, decay_steps=1, decay_rate=0.9999)
+        
+        self.sess = tf.compat.v1.Session()
         self.vectors = {}
 
         self.adj_mat = self.getAdj()
@@ -74,9 +66,9 @@ class SDNE(object):
     def train(self):
         adj_mat = self.adj_mat
 
-        AdjBatch = tf.placeholder(tf.float32, [None, self.node_size], name='adj_batch')
-        Adj = tf.placeholder(tf.float32, [None, None], name='adj_mat')
-        B = tf.placeholder(tf.float32, [None, self.node_size], name='b_mat')
+        AdjBatch = tf.compat.v1.placeholder(tf.float32, [None, self.node_size], name='adj_batch')
+        Adj = tf.compat.v1.placeholder(tf.float32, [None, None], name='adj_mat')
+        B = tf.compat.v1.placeholder(tf.float32, [None, self.node_size], name='b_mat')
 
         fc = AdjBatch
         scope_name = 'encoder'
@@ -120,11 +112,11 @@ class SDNE(object):
         for param in layer_collector:
             L += self.nu1 * tf.reduce_sum(tf.abs(param[0])) + self.nu2 * tf.reduce_sum(tf.square(param[0]))
 
-        optimizer = tf.train.AdamOptimizer(self.lr)
+        optimizer = tf.compat.v1.train.AdamOptimizer(self.lr)
 
         train_op = optimizer.minimize(L)
 
-        init = tf.global_variables_initializer()
+        init = tf.compat.v1.global_variables_initializer()
         self.sess.run(init)
 
         print("total iter: %i" % self.max_iter)
@@ -176,9 +168,9 @@ class SDNE2(object):
         self.max_iter = max_iter
         self.lr = learning_rate
         if self.lr is None:
-            self.lr = tf.train.inverse_time_decay(0.1, self.max_iter, decay_steps=1, decay_rate=0.9999)
+            self.lr = tf.keras.optimizers.schedules.InverseTimeDecay(0.1, decay_steps=1, decay_rate=0.9999)
 
-        self.sess = tf.Session()
+        self.sess = tf.compat.v1.Session()
         self.vectors = {}
 
         self.adj_mat = self.getAdj()
@@ -251,11 +243,11 @@ class SDNE2(object):
 
     def get_train(self):
 
-        NodeA = tf.placeholder(tf.float32, [None, self.node_size], name='node_a')
-        BmaskA = tf.placeholder(tf.float32, [None, self.node_size], name='beta_mask_a')
-        NodeB = tf.placeholder(tf.float32, [None, self.node_size], name='node_b')
-        BmaskB = tf.placeholder(tf.float32, [None, self.node_size], name='beta_mask_b')
-        Weights = tf.placeholder(tf.float32, [None, 1], name='adj_weights')
+        NodeA = tf.compat.v1.placeholder(tf.float32, [None, self.node_size], name='node_a')
+        BmaskA = tf.compat.v1.placeholder(tf.float32, [None, self.node_size], name='beta_mask_a')
+        NodeB = tf.compat.v1.placeholder(tf.float32, [None, self.node_size], name='node_b')
+        BmaskB = tf.compat.v1.placeholder(tf.float32, [None, self.node_size], name='beta_mask_b')
+        Weights = tf.compat.v1.placeholder(tf.float32, [None, 1], name='adj_weights')
 
         layer_collector = []
         nodes = tf.concat([NodeA, NodeB], axis=0)
@@ -272,13 +264,10 @@ class SDNE2(object):
         for param in layer_collector:
             L += self.nu1 * tf.reduce_sum(tf.abs(param[0])) + self.nu2 * tf.reduce_sum(tf.square(param[0]))
 
-        # lr = tf.train.exponential_decay(1e-6, self.max_iter, decay_steps=1, decay_rate=0.9999)
-        # optimizer = tf.train.MomentumOptimizer(lr, 0.99, use_nesterov=True)
-
-        optimizer = tf.train.AdamOptimizer(self.lr)
+        optimizer = tf.compat.v1.train.AdamOptimizer(self.lr)
         train_op = optimizer.minimize(L)
 
-        init = tf.global_variables_initializer()
+        init = tf.compat.v1.global_variables_initializer()
         self.sess.run(init)
 
         generator = self.generate_batch()
