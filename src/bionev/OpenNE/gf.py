@@ -69,4 +69,4 @@ class GraphFactorization(object):
         fout.write("{} {}\n".format(node_num, self.rep_size))
         for node, vec in self.vectors.items():
             fout.write("{} {}\n".format(node, ' '.join([str(x) for x in vec])))
-        fout.cl
+        fout.close
